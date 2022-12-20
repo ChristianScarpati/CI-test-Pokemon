@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: say-hello
         run: |
-          echo: "Hello World!"
+          echo "Hello World!"
       - name: Gimme the date
         run: date
       - run: ls -l

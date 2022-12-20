@@ -2,13 +2,19 @@ name: Deployment Pipeline
 
 on:
   push:
-    branches:
-      - master
+    branches: [master]
+  pull_request: 
+    branches: [master]
+    types: [opened, synchronize]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Cancel previous redundant builds 
+        uses: styfle/cancel-workflow-actions@0.9.1 # NO hace builds en paralelos, la que no sea la ultima, se cancelará.
+        with:
+          access_token: ${{ github.token }}
       - name: Checkout
         uses: actions/checkout@v3  #Esta acción verifica su repositorio en $GITHUB_WORKSPACE, para que su flujo de trabajo pueda acceder a él. 
         with:
@@ -24,3 +30,12 @@ jobs:
         run: npm run build
       - name: run tests
         run: npm run test
+      #- name: Deploy to Heroku 
+       #if: ${{ github.event_name == 'push'}} hacemos que funcione solo en master cuando se pushea
+       # uses: akhileshns/hero-deploy@v3.12.12
+       # with:
+       #   heroku_api_key: ${{secrets.API_KEY}}
+       #   heroku_app_name: ${{secrets.APP}} #Must be unique in Heroku
+       #   heroku_email: ${{secrets.API_EMAIL}}
+       #   health_check_url: "https://${{secrets.HEALTH_CHECK_URL}}.herokuapp.com/health"
+       #   rollbackonhealthcheckfailure: true

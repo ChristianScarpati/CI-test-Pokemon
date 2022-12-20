@@ -8,13 +8,18 @@ on:
     types: [opened, synchronize]
 
 jobs:
-  deploy:
+
+  avoid_reduncy:
     runs-on: ubuntu-latest
     steps:
       - name: Cancel previous redundant builds 
         uses: styfle/cancel-workflow-action@0.9.1 # NO hace builds en paralelos, la que no sea la ultima, se cancelará.
         with:
           access_token: ${{ github.token }}
+
+  lint:
+    runs-on: ubuntu-latest
+    steps: 
       - name: Checkout
         uses: actions/checkout@v3  #Esta acción verifica su repositorio en $GITHUB_WORKSPACE, para que su flujo de trabajo pueda acceder a él. 
         with:
@@ -26,10 +31,79 @@ jobs:
         run: npm install --no-audit --no-fund --no-optional
       - name: Lint
         run: npm run eslint
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3  #Esta acción verifica su repositorio en $GITHUB_WORKSPACE, para que su flujo de trabajo pueda acceder a él. 
+        with:
+          fetch-depth: 0 # <--- se trae el ultimo commit
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+      - name: Install dependencies
+        run: npm ci
       - name: run Build
-        run: npm run build
+        run: npm run build #empaqueta nuestra app
+      - uses: actions/upload-artifact@v2 #sube el build a github
+        with:
+          name: dist # carpeta donde esta la info que queremos empaquetar. con esto lo subimos a la nube
+          path: dist
+
+  tests: 
+    needs: [lint, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3  #Esta acción verifica su repositorio en $GITHUB_WORKSPACE, para que su flujo de trabajo pueda acceder a él. 
+        with:
+          fetch-depth: 0 # <--- se trae el ultimo commit
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+      - name: Install dependencies
+        run: npm ci
+      - uses: actions/download-artifact@v2 #sube el build a github
+        with:
+          name: dist 
+          path: dist
       - name: run tests
         run: npm run test
+
+  e2e:
+    needs: [lint, build] 
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3  #Esta acción verifica su repositorio en $GITHUB_WORKSPACE, para que su flujo de trabajo pueda acceder a él. 
+        with:
+          fetch-depth: 0 # <--- se trae el ultimo commit
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+      - name: Install dependencies
+        run: npm ci
+      - uses: actions/download-artifact@v2 #sube el build a github
+        with:
+          name: dist 
+          path: dist
+      - name: E2E tests
+        uses: cypress-io/github-action@v2
+        with:
+          command: npom run test:e2e
+          start: npm run start-test
+          wait-on: 'http://localhost:5000'
+        
+
+  deploy:
+    needs: [tests, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3  #Esta acción verifica su repositorio en $GITHUB_WORKSPACE, para que su flujo de trabajo pueda acceder a él. 
+        with:
+          fetch-depth: 0 # <--- se trae el ultimo commit
       #- name: Deploy to Heroku 
        #if: ${{ github.event_name == 'push'}} hacemos que funcione solo en master cuando se pushea
        # uses: akhileshns/hero-deploy@v3.12.12
